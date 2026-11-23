@@ -11,6 +11,7 @@ namespace JLChnToZ.VRC.VVMW {
         [SerializeField] VRCUrl[] playListUrls, playListUrlsQuest, playListUrlsIOS;
         [SerializeField] string[] playListEntryTitles;
         [SerializeField] byte[] playListPlayerIndex;
+        [SerializeField] float[] playListEntryGains;
         [SerializeField, FormerlySerializedAs("localPlayListIndex")] int defaultPlayListIndex;
         [UdonSynced] ushort[] playListOrder;
         [UdonSynced] ushort playingIndex;
@@ -67,6 +68,21 @@ namespace JLChnToZ.VRC.VVMW {
         /// </remarks>
         /// <remarks>The returned array is meant to be read only, do not modify.</remarks>
         public byte[] PlayListPlayerIndex => playListPlayerIndex;
+
+        /// <summary>
+        /// The linear gain (0 to 1) of the playlist entries, applied after the volume slider.
+        /// </summary>
+        /// <remarks>
+        /// May be shorter than <see cref="PlayListUrls"/> (or empty for data saved before this field existed);
+        /// missing entries mean a gain of 1.
+        /// The returned array is meant to be read only, do not modify.
+        /// </remarks>
+        public float[] PlayListEntryGains => playListEntryGains;
+
+        float GetPlayListEntryGain(int index) {
+            if (!Utilities.IsValid(playListEntryGains) || index < 0 || index >= playListEntryGains.Length) return 1F;
+            return Mathf.Clamp01(playListEntryGains[index]);
+        }
 
         /// <summary>
         /// The entry index of the current playing item, relative to the current playlist.
@@ -147,6 +163,7 @@ namespace JLChnToZ.VRC.VVMW {
             }
             core.PlayUrl(playListUrls[localPlayingIndex], playListUrlsQuest[localPlayingIndex], playListPlayerIndex[localPlayingIndex]);
             core.SetTitle(playListEntryTitles[localPlayingIndex], playListTitles[localPlayListIndex - 1]);
+            core.EntryGain = GetPlayListEntryGain(localPlayingIndex);
             localCurrentTitle = "";
             RequestSync();
             UpdateState();

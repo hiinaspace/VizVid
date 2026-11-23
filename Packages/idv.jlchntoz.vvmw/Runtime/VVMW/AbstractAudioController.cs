@@ -21,6 +21,7 @@ namespace JLChnToZ.VRC.VVMW {
         protected virtual void OnEnable() {
             internalVolume = core.Volume;
             internalVolume *= internalVolume;
+            internalVolume *= core.EntryGain;
             UpdateVolume();
         }
 

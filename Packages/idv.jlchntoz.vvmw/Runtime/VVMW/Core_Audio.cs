@@ -18,6 +18,7 @@ namespace JLChnToZ.VRC.VVMW {
         AudioSource assignedAudioSource, assignedAudioSourceR;
         float currentFadeVolume = 0, targetFadeVolume = 0;
         bool isVolumeFading = false;
+        float entryGain = 1;
 
         /// <summary>
         /// The volume of the audio.
@@ -44,6 +45,22 @@ namespace JLChnToZ.VRC.VVMW {
             }
         }
 
+        /// <summary>
+        /// Linear gain of the current playlist entry (e.g. a loudness normalization),
+        /// applied after the volume slider and fade curve. Attenuation only, clamped to [0, 1].
+        /// </summary>
+        /// <remarks>
+        /// Reset to 1 when a new URL is played locally; <see cref="FrontendHandler"/> sets it
+        /// for playlist entries on every client.
+        /// </remarks>
+        public float EntryGain {
+            get => entryGain;
+            set {
+                entryGain = Mathf.Clamp01(value);
+                ApplyVolume();
+            }
+        }
+
         void UpdateVolume() {
             if (!isVolumeFading) {
                 isVolumeFading = true;
@@ -65,8 +82,13 @@ namespace JLChnToZ.VRC.VVMW {
                 currentFadeVolume = Mathf.MoveTowards(currentFadeVolume, targetFadeVolume, UnityEngine.Time.deltaTime / volumeFadeDuration);
                 SendCustomEventDelayedFrames(nameof(_HandleVolumeFade), 0);
             }
+            ApplyVolume();
+        }
+
+        void ApplyVolume() {
             var volume = currentFadeVolume * defaultVolume;
             volume *= volume; // Volume is not linear
+            volume *= entryGain; // Per-entry gain is linear and applied after the square
             if (Utilities.IsValid(audioSources))
                 for (int i = 0, ic = audioSources.Length; i < ic; i++) {
                     var audioSource = audioSources[i];

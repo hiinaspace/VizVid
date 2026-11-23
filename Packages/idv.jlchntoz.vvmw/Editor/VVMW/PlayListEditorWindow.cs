@@ -250,7 +250,7 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                 onAddCallback = AddPlayListEntry,
                 onRemoveCallback = RemovePlayListEntry,
                 onReorderCallback = ReorderPlayListEntry,
-                elementHeight = (EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing) * 3,
+                elementHeight = (EditorGUIUtility.singleLineHeight + EditorGUIUtility.standardVerticalSpacing) * 4,
                 showDefaultBackground = false,
             };
         }
@@ -320,6 +320,17 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                     SetDirty(true);
                 }
             }
+            var gainRect = rect;
+            gainRect.yMin = urlQuestRect.yMax + EditorGUIUtility.standardVerticalSpacing;
+            gainRect.height = EditorGUIUtility.singleLineHeight;
+            using (var changed = new EditorGUI.ChangeCheckScope()) {
+                var newGain = EditorGUI.Slider(gainRect, "Gain", entry.gain > 0 ? entry.gain : 1F, 0F, 1F);
+                if (changed.changed) {
+                    entry.gain = newGain;
+                    selectedPlayList.entries[index] = entry;
+                    SetDirty(true);
+                }
+            }
             EditorGUIUtility.labelWidth = labelSize;
         }
 
@@ -351,6 +362,7 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                 var playListUrlsQuestProperty = serializedObject.FindProperty("playListUrlsQuest");
                 var playListEntryTitlesProperty = serializedObject.FindProperty("playListEntryTitles");
                 var playListPlayerIndexProperty = serializedObject.FindProperty("playListPlayerIndex");
+                var playListEntryGainsProperty = serializedObject.FindProperty("playListEntryGains");
                 var playListCount = playListTitlesProperty.arraySize;
                 for (int i = 0; i < playListCount; i++) {
                     var urlOffset = playListUrlOffsetsProperty.GetArrayElementAtIndex(i).intValue;
@@ -364,7 +376,8 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                             title = playListEntryTitlesProperty.GetArrayElementAtIndex(urlOffset + j).stringValue,
                             url = playListUrlsProperty.GetArrayElementAtIndex(urlOffset + j).FindPropertyRelative("url").stringValue,
                             urlForQuest = playListUrlsQuestProperty.GetArrayElementAtIndex(urlOffset + j).FindPropertyRelative("url").stringValue,
-                            playerIndex = playListPlayerIndexProperty.GetArrayElementAtIndex(urlOffset + j).intValue - 1
+                            playerIndex = playListPlayerIndexProperty.GetArrayElementAtIndex(urlOffset + j).intValue - 1,
+                            gain = urlOffset + j < playListEntryGainsProperty.arraySize ? playListEntryGainsProperty.GetArrayElementAtIndex(urlOffset + j).floatValue : 1F
                         });
                     playLists.Add(playList);
                 }
@@ -384,6 +397,7 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                 var playListUrlsQuestProperty = serializedObject.FindProperty("playListUrlsQuest");
                 var playListEntryTitlesProperty = serializedObject.FindProperty("playListEntryTitles");
                 var playListPlayerIndexProperty = serializedObject.FindProperty("playListPlayerIndex");
+                var playListEntryGainsProperty = serializedObject.FindProperty("playListEntryGains");
                 playListTitlesProperty.arraySize = count;
                 playListUrlOffsetsProperty.arraySize = count;
                 for (int i = 0; i < count; i++) {
@@ -397,12 +411,14 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                 playListUrlsQuestProperty.arraySize = offset;
                 playListEntryTitlesProperty.arraySize = offset;
                 playListPlayerIndexProperty.arraySize = offset;
+                playListEntryGainsProperty.arraySize = offset;
                 for (int i = 0; i < offset; i++) {
                     var entry = temp[i];
                     playListUrlsProperty.GetArrayElementAtIndex(i).FindPropertyRelative("url").stringValue = entry.url;
                     playListUrlsQuestProperty.GetArrayElementAtIndex(i).FindPropertyRelative("url").stringValue = entry.urlForQuest;
                     playListEntryTitlesProperty.GetArrayElementAtIndex(i).stringValue = entry.title;
                     playListPlayerIndexProperty.GetArrayElementAtIndex(i).intValue = entry.playerIndex + 1;
+                    playListEntryGainsProperty.GetArrayElementAtIndex(i).floatValue = entry.gain > 0 ? Mathf.Min(entry.gain, 1F) : 1F;
                 }
                 serializedObject.ApplyModifiedProperties();
             }
@@ -779,6 +795,10 @@ namespace JLChnToZ.VRC.VVMW.Editors {
             jsonWriter.Write(entry.urlForQuest);
             jsonWriter.WritePropertyName("playerIndex");
             jsonWriter.Write(entry.playerIndex);
+            if (entry.gain > 0 && entry.gain < 1) {
+                jsonWriter.WritePropertyName("gain");
+                jsonWriter.Write((double)entry.gain);
+            }
             jsonWriter.WriteObjectEnd();
         }
 
@@ -826,11 +846,17 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                     var url = entry["url"].ToString();
                     var urlForQuest = entry["urlForQuest"]?.ToString();
                     var playerIndex = (int)entry["playerIndex"];
+                    float gain = 1F;
+                    try {
+                        var gainData = entry["gain"];
+                        if (gainData != null) gain = Mathf.Clamp01(float.Parse(gainData.ToString(), System.Globalization.CultureInfo.InvariantCulture));
+                    } catch (Exception) { } // Optional field, absent in older playlists
                     selectedPlayList.entries.Add(new PlayListEntry {
                         title = title,
                         url = url,
                         urlForQuest = urlForQuest,
                         playerIndex = playerIndex,
+                        gain = gain,
                     });
                     SetDirty(true);
                 } catch (Exception ex) {
@@ -888,6 +914,7 @@ namespace JLChnToZ.VRC.VVMW.Editors {
             public string url;
             public string urlForQuest;
             public int playerIndex;
+            public float gain; // Linear loudness gain; 0 (unset) is treated as 1
         }
     }
 }

@@ -342,6 +342,7 @@ namespace JLChnToZ.VRC.VVMW {
                 altUrl = questUrl;
             }
             time = 0;
+            if (entryGain != 1) EntryGain = 1; // Playlist entries set their own gain after this call
             SetRangeInternal(-1, -1);
             ActivePlayer = playerType;
             loadingUrl = null;
