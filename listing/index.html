@@ -84,7 +84,7 @@
 <ul>
   <li>The gain only turns a video down. It never raises it.</li>
   <li>It applies to playlist entries. Queued videos and typed URLs play at full volume.</li>
-  <li>"Bake YouTube loudness" needs a yt-dlp build that reports YouTube's loudness data. The editor can use one you point it at.</li>
+  <li>"Bake YouTube loudness" needs a yt-dlp build that reports YouTube's loudness data. Stock yt-dlp does not yet. A patched build is on the <a href="https://github.com/hiinaspace/yt-dlp/tree/loudness-info"><code>loudness-info</code> branch</a> of a yt-dlp fork, for example via <code>uv tool install git+https://github.com/hiinaspace/yt-dlp@loudness-info</code> (this replaces your <code>yt-dlp</code> command). Then point the playlist editor's loudness yt-dlp setting at that executable. The branch is not part of upstream yt-dlp and may lag behind it.</li>
 </ul>
 </body>
 </html>
