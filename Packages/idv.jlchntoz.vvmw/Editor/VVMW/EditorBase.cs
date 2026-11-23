@@ -52,6 +52,7 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                 var icon = AssetDatabase.LoadAssetAtPath<Texture>(iconPath);
                 titleContent.image = icon;
             }
+            if (i18n == null) i18n = EditorI18N.Instance; // The playlist editor can open before any VizVid inspector has
             var text = i18n.GetOrDefault(languageKey);
             if (unsaved) text += "*";
             titleContent.text = text;

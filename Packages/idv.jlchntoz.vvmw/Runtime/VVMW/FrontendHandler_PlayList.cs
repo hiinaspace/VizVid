@@ -84,6 +84,17 @@ namespace JLChnToZ.VRC.VVMW {
             return Mathf.Clamp01(playListEntryGains[index]);
         }
 
+        void ApplyPlayListEntryGain(int index) {
+            float gain = GetPlayListEntryGain(index);
+            core.EntryGain = gain;
+            string detail = !Utilities.IsValid(playListEntryGains) ? " (no gain array in this world)" :
+                index >= playListEntryGains.Length ? " (gain array too short for this entry)" : "";
+            if (gain >= 0.9999F)
+                Debug.Log("[VizVid] loudness gain 0.00 dB (x1) for entry " + index + detail);
+            else
+                Debug.Log("[VizVid] loudness gain " + (20F * Mathf.Log10(Mathf.Max(gain, 0.0001F))).ToString("F2") + " dB (x" + gain.ToString("F4") + ") for entry " + index);
+        }
+
         /// <summary>
         /// The entry index of the current playing item, relative to the current playlist.
         /// </summary>
@@ -163,7 +174,7 @@ namespace JLChnToZ.VRC.VVMW {
             }
             core.PlayUrl(playListUrls[localPlayingIndex], playListUrlsQuest[localPlayingIndex], playListPlayerIndex[localPlayingIndex]);
             core.SetTitle(playListEntryTitles[localPlayingIndex], playListTitles[localPlayListIndex - 1]);
-            core.EntryGain = GetPlayListEntryGain(localPlayingIndex);
+            ApplyPlayListEntryGain(localPlayingIndex);
             localCurrentTitle = "";
             RequestSync();
             UpdateState();

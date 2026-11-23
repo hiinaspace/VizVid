@@ -405,7 +405,10 @@ namespace JLChnToZ.VRC.VVMW {
                 if (localPlayListIndex != playListIndex || localPlayingIndex != playingIndex)
                     core.SetTitle(playListEntryTitles[playingIndex], playListTitles[playListIndex - 1]);
             } else UpdateTitle();
-            core.EntryGain = playListIndex > 0 ? GetPlayListEntryGain(playingIndex) : 1F;
+            if (playListIndex > 0) {
+                if (localPlayListIndex != playListIndex || localPlayingIndex != playingIndex) ApplyPlayListEntryGain(playingIndex);
+                else core.EntryGain = GetPlayListEntryGain(playingIndex);
+            } else core.EntryGain = 1F;
             localPlayListIndex = playListIndex;
             localPlayingIndex = playingIndex;
             localLastPlayingIndex = lastPlayingIndex;

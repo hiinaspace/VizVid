@@ -51,6 +51,14 @@ namespace JLChnToZ.VRC.VVMW.Editors {
             }
         }
 
+        /// <summary>Name of the first player whose edits in an open playlist editor are not saved to it yet, or null.</summary>
+        internal static string UnsavedEditorHandlerName() {
+            foreach (var window in Resources.FindObjectsOfTypeAll<PlayListEditorWindow>())
+                if (window != null && !window.headless && window.isDirty && window.frontendHandler != null)
+                    return window.frontendHandler.name;
+            return null;
+        }
+
         public static void StartEditPlayList(FrontendHandler handler) {
             var window = GetWindow<PlayListEditorWindow>();
             window.FrontendHandler = handler;
@@ -124,6 +132,7 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                     menu.ShowAsContext();
                 }
             }
+            DrawLoudnessHeader();
             var evt = Event.current;
             using (new EditorGUILayout.HorizontalScope()) {
                 Rect playListRect, playListEntryRect;
@@ -266,6 +275,27 @@ namespace JLChnToZ.VRC.VVMW.Editors {
             };
         }
 
+        void DrawLoudnessHeader() {
+            int total = 0, attenuated = 0;
+            float minDb = 0, maxDb = float.NegativeInfinity;
+            foreach (var playList in playLists) {
+                if (playList.entries == null) continue;
+                foreach (var entry in playList.entries) {
+                    total++;
+                    if (entry.gain > 0 && entry.gain < 0.9999F) {
+                        attenuated++;
+                        var db = 20F * Mathf.Log10(entry.gain);
+                        minDb = Mathf.Min(minDb, db);
+                        maxDb = Mathf.Max(maxDb, db);
+                    }
+                }
+            }
+            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(PlayListEditorWindow).Assembly);
+            var text = "Loudness fork " + (info != null ? info.version : "?") + ": " + attenuated + " of " + total + " entries attenuated" +
+                (attenuated > 0 ? " (" + LoudnessDoctor.RangeDb(minDb, maxDb) + ")" : "");
+            EditorGUILayout.LabelField(text, EditorStyles.miniBoldLabel);
+        }
+
         void DrawPlayListEntryHeader(Rect rect) => EditorGUI.LabelField(rect, selectedPlayList.title, EditorStyles.boldLabel);
 
         void DrawPlayListEntry(Rect rect, int index, bool isActive, bool isFocused) {
@@ -335,7 +365,12 @@ namespace JLChnToZ.VRC.VVMW.Editors {
             gainRect.yMin = urlQuestRect.yMax + EditorGUIUtility.standardVerticalSpacing;
             gainRect.height = EditorGUIUtility.singleLineHeight;
             using (var changed = new EditorGUI.ChangeCheckScope()) {
-                var newGain = EditorGUI.Slider(gainRect, "Gain", entry.gain > 0 ? entry.gain : 1F, 0F, 1F);
+                var dbRect = gainRect;
+                dbRect.xMin = dbRect.xMax - 64;
+                gainRect.xMax = dbRect.xMin - 4;
+                var shownGain = entry.gain > 0 ? entry.gain : 1F;
+                var newGain = EditorGUI.Slider(gainRect, "Gain", shownGain, 0F, 1F);
+                EditorGUI.LabelField(dbRect, shownGain >= 0.9999F ? "0 dB" : LoudnessDoctor.FormatDb(20F * Mathf.Log10(newGain)) + " dB", EditorStyles.miniLabel);
                 if (changed.changed) {
                     entry.gain = newGain;
                     selectedPlayList.entries[index] = entry;
@@ -829,6 +864,12 @@ namespace JLChnToZ.VRC.VVMW.Editors {
         void ImportPlayListFromJson() {
             var path = EditorUtility.OpenFilePanel(i18n.GetOrDefault("PlaylistEditor.importTitle"), Application.dataPath, "json");
             if (string.IsNullOrEmpty(path) || !File.Exists(path)) return;
+            ImportPlayListFromPath(path);
+        }
+
+        /// <summary>Imports playlist JSON from a file path (same as the Import button) and logs how many gains it read.</summary>
+        public void ImportPlayListFromPath(string path) {
+            importedEntries = importedGains = importedAttenuated = 0;
             var jsonData = JsonMapper.ToObject(File.ReadAllText(path));
             switch (jsonData.GetJsonType()) {
                 case JsonType.Array:
@@ -849,6 +890,8 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                     LoadEntries(jsonData["entries"]);
                     break;
             }
+            Debug.Log("[VVMW] Imported " + importedEntries + " entries from " + Path.GetFileName(path) + ": " + importedGains + " had a gain field, " + importedAttenuated + " of them attenuated." +
+                (importedEntries > 0 && importedGains == 0 ? " No gains were found in this file; imported entries stay at full volume." : ""));
         }
 
         void LoadPlayLists(JsonData playListLists) {
@@ -862,6 +905,8 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                 }
         }
 
+        int importedEntries, importedGains, importedAttenuated;
+
         void LoadEntries(JsonData entries) {
             if (entries == null || entries.GetJsonType() != JsonType.Array) return;
             foreach (JsonData entry in entries) {
@@ -873,7 +918,11 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                     float gain = 1F;
                     try {
                         var gainData = entry["gain"];
-                        if (gainData != null) gain = Mathf.Clamp01(float.Parse(gainData.ToString(), System.Globalization.CultureInfo.InvariantCulture));
+                        if (gainData != null) {
+                            gain = Mathf.Clamp01(float.Parse(gainData.ToString(), System.Globalization.CultureInfo.InvariantCulture));
+                            importedGains++;
+                            if (gain < 0.9999F) importedAttenuated++;
+                        }
                     } catch (Exception) { } // Optional field, absent in older playlists
                     selectedPlayList.entries.Add(new PlayListEntry {
                         title = title,
@@ -882,6 +931,7 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                         playerIndex = playerIndex,
                         gain = gain,
                     });
+                    importedEntries++;
                     SetDirty(true);
                 } catch (Exception ex) {
                     Debug.LogException(ex);
