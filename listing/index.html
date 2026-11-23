@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VizVid loudness fork: VPM listing</title>
+<style>
+  :root { --bg:#fff; --fg:#1c1c1c; --muted:#5a5a5a; --line:#d8d8d8; --code:#f2f2f2; --link:#0b5cad; --ok:#1a7f37; --bad:#b42318; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#161616; --fg:#e8e8e8; --muted:#a0a0a0; --line:#333; --code:#262626; --link:#6cb2ff; --ok:#56d364; --bad:#ff7b72; }
+  }
+  body { background:var(--bg); color:var(--fg); font:16px/1.55 system-ui, sans-serif; max-width:46rem; margin:0 auto; padding:1.5rem 16px 4rem; }
+  h1 { font-size:1.6rem; margin:0 0 .25rem; }
+  h2 { font-size:1.2rem; margin:2.2rem 0 .5rem; padding-top:.5rem; border-top:1px solid var(--line); }
+  a { color:var(--link); }
+  code { background:var(--code); padding:.1em .35em; border-radius:3px; font-size:.92em; overflow-wrap:anywhere; }
+  .lead { color:var(--muted); margin:0 0 1rem; }
+  ol, ul { padding-left:1.3rem; }
+  li { margin:.4rem 0; }
+  .check { border:1px solid var(--line); border-radius:6px; padding:.2rem .9rem .5rem; margin:.8rem 0; }
+  .check h3 { font-size:1rem; margin:.6rem 0 .2rem; }
+  .check p { margin:.25rem 0; }
+  .right { color:var(--ok); font-weight:600; }
+  .wrong { color:var(--bad); font-weight:600; }
+</style>
+</head>
+<body>
+<h1>VizVid loudness fork</h1>
+<p class="lead">A fork of <a href="https://github.com/JLChnToZ/VVMW">VizVid</a> by Hiina. It adds a loudness gain to each playlist entry, so loud videos can be turned down without touching the volume slider. <a href="https://github.com/hiinaspace/VizVid">Source and releases</a>.</p>
+
+<p>VPM listing URL: <code>https://hiinaspace.github.io/VizVid/index.json</code> (<a href="vcc://vpm/addRepo?url=https://hiinaspace.github.io/VizVid/index.json">add to VCC</a>)</p>
+
+<h2>Install</h2>
+<ol>
+  <li>Add the listing above to VCC or ALCOM (Settings, Packages, Add Repository).</li>
+  <li>Keep the upstream listing, <code>https://xtlcdn.github.io/vpm/</code>, added too. VizVid needs <code>vrcw-foundation</code> and <code>lazyswitch</code>, and those only come from there.</li>
+  <li>Turn on pre-release packages. In VCC: Settings, Packages, Show Pre-Release Packages. In ALCOM: Settings, Show pre-release packages. The fork's versions end in <code>-loudness.N</code>, which counts as a pre-release.</li>
+  <li>Open your project, find "VizVid (loudness fork)", and pick the newest <code>1.8.4-loudness.N</code> version.</li>
+  <li>If the project already has VizVid, this replaces it. Back up the project first.</li>
+</ol>
+
+<h2>Check that it worked</h2>
+<p>Go through these in order. Each one says what you should see and what it means if you do not.</p>
+
+<div class="check">
+  <h3>1. The package version in VCC or ALCOM</h3>
+  <p><span class="right">Right:</span> the project lists "VizVid (loudness fork)" with a version like <code>1.8.4-loudness.2</code>.</p>
+  <p><span class="wrong">Wrong:</span> it says plain "VizVid" or a version without <code>-loudness</code>. That is upstream's copy. Gains in your playlist will be ignored. Pre-releases are probably off, or the fork listing is missing. Fix that and install again.</p>
+</div>
+
+<div class="check">
+  <h3>2. The Loudness Doctor</h3>
+  <p>In Unity, with your world scene open, choose <code>Tools &gt; VizVid &gt; Loudness Doctor</code>. The full report is written to the Console.</p>
+  <p><span class="right">Right:</span> the dialog says <code>PASS</code>. The report says the fork is installed, it is the only VizVid copy, and how many entries are attenuated.</p>
+  <p><span class="wrong">Wrong:</span> a <code>WARN</code> or <code>FAIL</code> line says in plain words what is off: another VizVid copy, a gain array that is empty or too short (those entries play at full volume), unsaved changes, and so on. A warning about YouTube entries at full volume means they were either never baked or are already quiet enough. The file cannot say which.</p>
+</div>
+
+<div class="check">
+  <h3>3. The playlist editor, after importing the JSON</h3>
+  <p>Select the VizVid Frontend object, press "Edit Playlists...", then "Import from JSON" and pick the playlist file. If it asks where to load the playlist, pick "New Playlist" or "Replace Current". Then press "Save" in the playlist editor window.</p>
+  <p><span class="right">Right:</span> the Console says <code>[VVMW] Imported N entries ... M had a gain field</code>, with M above zero. The top of the editor window reads <code>Loudness fork ...: X of N entries attenuated (-9.1 to -0.4 dB)</code>. Each entry shows its gain in dB beside the slider.</p>
+  <p><span class="wrong">Wrong:</span> if the header does not appear, the fork is not installed (check 1). If M is 0, the JSON has no <code>gain</code> fields and every entry will play at full volume.</p>
+</div>
+
+<div class="check">
+  <h3>4. Save the scene</h3>
+  <p>Press Ctrl+S, then run the Doctor again.</p>
+  <p><span class="right">Right:</span> no "unsaved changes" warning, and the gain line matches what the editor header said.</p>
+  <p><span class="wrong">Wrong:</span> an "unsaved" warning means the gains are not in the scene file, so they will not be in your build. Gains are only stored when both the playlist editor's Save and the scene save have happened.</p>
+</div>
+
+<div class="check">
+  <h3>5. In the world: the log line, or your ears</h3>
+  <p>Build and test the world (or upload it), join, and play a playlist entry. Playlist plays only: a video you queue or a URL you paste always plays at full volume.</p>
+  <p><span class="right">Right:</span> VRChat's output log, and the in-game debug console, show one line per entry played, like <code>[VizVid] loudness gain -7.16 dB (x0.4385) for entry 12</code>. The log is in <code>%LOCALAPPDATA%Low\VRChat\VRChat\output_log_*.txt</code> on Windows. The video is audibly quieter than the same video at full volume.</p>
+  <p><span class="wrong">Wrong:</span> <code>0.00 dB (x1)</code> means that entry has no gain. If it adds "no gain array in this world", the gains were not saved into the scene before building (checks 3 and 4). If there is no <code>[VizVid] loudness gain</code> line at all, the world was built with upstream's VizVid or an older build, so build again after check 1.</p>
+</div>
+
+<h2>What upstream updates do</h2>
+<p>This fork is based on upstream VizVid 1.8.3. A fork version like <code>1.8.4-loudness.2</code> counts as older than a final upstream <code>1.8.4</code>. When upstream publishes 1.8.4 or later, VCC will offer it as an update and may pick it first.</p>
+<p>Upstream does not have the gain field. If you update to it, the playlist gains are dropped and every video plays at full volume. Nothing shows an error. Before updating VizVid, check the version still says <code>-loudness</code> afterwards, and run the Loudness Doctor. A new fork version will be published for each upstream release, but not on the same day.</p>
+
+<h2>Limits</h2>
+<ul>
+  <li>The gain only turns a video down. It never raises it.</li>
+  <li>It applies to playlist entries. Queued videos and typed URLs play at full volume.</li>
+  <li>"Bake YouTube loudness" needs a yt-dlp build that reports YouTube's loudness data. The editor can use one you point it at.</li>
+</ul>
+</body>
+</html>

@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## 1.8.4-loudness.2 - 2026-11-23
+Fork of 1.8.3 by Hiina (https://github.com/hiinaspace/VizVid), not an upstream release.
+### Added
+- Tools > VizVid > Loudness Doctor: checks that the fork is the only VizVid copy, that every playlist's gain array covers its entries, and that nothing else would stop gains applying. Also callable as `LoudnessDoctor.Run()`, which returns JSON.
+- Playlist editor: a header line with the fork version and how many entries are attenuated, each entry's gain in dB beside the slider, and a Console line after JSON import saying how many gains were read.
+- In game: one `[VizVid] loudness gain ...` log line each time a playlist entry's gain is applied.
+- The listing page now has install steps and a verification checklist.
+### Fixed
+- The playlist editor could fail to open before any VizVid inspector had been shown.
+
 ## 1.8.4-loudness.1 - 2026-11-23
 Fork of 1.8.3 by Hiina (https://github.com/hiinaspace/VizVid), not an upstream release.
 ### Added
