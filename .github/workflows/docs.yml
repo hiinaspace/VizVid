@@ -1,16 +1,8 @@
 name: Build Docs
 
+# Fork: manual only. Pages here serves the VPM listing; upstream docs live at xtlcdn.github.io/VizVid.
 on:
   workflow_dispatch:
-  push:
-    paths:
-      - '.github/workflows/docs.yml'
-      - 'docs/**'
-      - 'CHANGELOG.md'
-      - 'Packages/manifest.json'
-      - 'Packages/packages-lock.json'
-      - 'Packages/vpm-manifest.json'
-      - 'Packages/idv.jlchntoz.vvmw/**'
 
 permissions:
   contents: read

@@ -1,9 +1,9 @@
 {
   "name": "idv.jlchntoz.vvmw",
-  "displayName": "VizVid",
-  "version": "1.8.3",
+  "displayName": "VizVid (loudness fork)",
+  "version": "1.8.4-loudness.1",
   "unity": "2019.4",
-  "description": "Modular, feature-rich video player frontend for VRChat.",
+  "description": "Modular, feature-rich video player frontend for VRChat. Fork by Hiina adding per-playlist-entry loudness gain (YouTube normalization); see https://github.com/hiinaspace/VizVid.",
   "license": "MIT",
   "vrchatVersion": "2022.1.1",
   "documentationUrl": "https://xtlcdn.github.io/VizVid/docs/",

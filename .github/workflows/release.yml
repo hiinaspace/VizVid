@@ -107,7 +107,7 @@ jobs:
                 echo
               fi
 
-              echo "Download/update with VCC: https://xtlcdn.github.io/vpm/"
+              echo "Download/update with VCC: add https://hiinaspace.github.io/VizVid/index.json (dependencies come from https://xtlcdn.github.io/vpm/)"
               echo "WE DO NOT RECOMMEND MANUALLY DOWNLOAD AND IMPORT FOLLOWING ASSETS AS YOU WILL MISS DEPENDENCIES!"
             } > changelog_diff.md
 
@@ -144,5 +144,15 @@ jobs:
             ${{ env.packagePath }}/package.json
           tag_name: ${{ steps.release_vars.outputs.version }}
           prerelease: ${{ steps.release_vars.outputs.is_prerelease }}
-          draft: true
+          draft: false
           body_path: changelog_diff.md
+
+  # Rebuild the VPM listing on Pages. A release made with GITHUB_TOKEN does not trigger
+  # other workflows, so the listing is called here directly.
+  listing:
+    needs: build
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/listing.yml

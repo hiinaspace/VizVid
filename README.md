@@ -1,5 +1,11 @@
 # VizVid
 
+> **This is a fork** of [xtlcdn/VizVid](https://github.com/xtlcdn/VizVid) by Hiina. It adds a per-playlist-entry
+> gain, plus a playlist-editor action that bakes it from YouTube's loudness metadata, so preset
+> playlists play at YouTube's normalized loudness. Branch `loudness-gain`; VPM listing:
+> `https://hiinaspace.github.io/VizVid/index.json` (keep the upstream listing for dependencies). Everything
+> else is upstream's; report non-loudness issues there.
+
 ![Banner](./docs/resources/images/cover.png)
 
 VizVid is a versatile multimedia player frontend designed specifically for VRChat.  

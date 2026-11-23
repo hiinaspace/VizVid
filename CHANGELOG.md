@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## [Unreleased]
 
+## 1.8.4-loudness.1 - 2026-11-23
+Fork of 1.8.3 by Hiina (https://github.com/hiinaspace/VizVid), not an upstream release.
+### Added
+- Per-playlist-entry gain, applied after the volume slider's square law; non-playlist plays reset it to unity.
+- Playlist editor: a Gain slider per entry, an optional `gain` field in playlist JSON import/export, and "Bake YouTube loudness", which sets each YouTube entry's gain from YouTube's loudness metadata (attenuation only, `10^(min(0, target - absolute)/20)`). Baking needs a yt-dlp build exposing `loudness_lkfs` and `loudness_target_lkfs`.
+
 ## 1.8.3 - 2026-11-07
 ### Fixed
 - Keep the playback history alive when a Quest URL follows a video without one [#97](https://github.com/JLChnToZ/VVMW/pull/97)

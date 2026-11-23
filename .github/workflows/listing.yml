@@ -1,0 +1,76 @@
+name: Build VPM Listing
+
+# Publishes a VPM repository listing (index.json) for this fork to GitHub Pages,
+# built from every published release that carries a package zip and package.json.
+# Listing URL: https://<owner>.github.io/<repo>/index.json
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  listing:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - name: Build index.json
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          PACKAGE_NAME: ${{ vars.PACKAGE_NAME }}
+        run: |
+          set -euo pipefail
+          mkdir -p site
+          python3 - <<'PY'
+          import hashlib, json, os, subprocess, urllib.request
+          repo, owner, pkg = os.environ["REPO"], os.environ["OWNER"], os.environ["PACKAGE_NAME"]
+          name = repo.split("/")[1]
+          rels = json.loads(subprocess.check_output(["gh", "api", "--paginate", f"repos/{repo}/releases"]))
+          versions = {}
+          for r in rels:
+              if r["draft"]:
+                  continue
+              assets = {a["name"]: a["browser_download_url"] for a in r["assets"]}
+              zips = [n for n in assets if n.startswith(pkg + "-") and n.endswith(".zip")]
+              if "package.json" not in assets or not zips:
+                  print("skip", r["tag_name"], "(no package.json or zip)")
+                  continue
+              meta = json.load(urllib.request.urlopen(assets["package.json"]))
+              data = urllib.request.urlopen(assets[zips[0]]).read()
+              meta["url"] = assets[zips[0]]
+              meta["zipSHA256"] = hashlib.sha256(data).hexdigest()
+              versions[meta["version"]] = meta
+              print("add", meta["version"], meta["zipSHA256"])
+          listing = {
+              "name": f"{owner}/{name} (VizVid loudness fork)",
+              "id": f"io.github.{owner.lower()}.{name.lower()}",
+              "url": f"https://{owner.lower()}.github.io/{name}/index.json",
+              "author": owner,
+              "packages": {pkg: {"versions": versions}},
+          }
+          json.dump(listing, open("site/index.json", "w"), indent=2)
+          open("site/index.html", "w").write(
+              f'<!doctype html><meta charset="utf-8"><title>{name} VPM listing</title>'
+              f'<p>VPM listing: <code>{listing["url"]}</code> '
+              f'(<a href="vcc://vpm/addRepo?url={listing["url"]}">add to VCC</a>). '
+              f'Dependencies come from the upstream listing at https://xtlcdn.github.io/vpm/.</p>')
+          if not versions:
+              raise SystemExit("no releases with package assets")
+          PY
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+      - id: deploy
+        uses: actions/deploy-pages@v5
