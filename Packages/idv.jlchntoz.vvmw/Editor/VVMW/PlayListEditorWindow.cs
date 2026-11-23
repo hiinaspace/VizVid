@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Threading;
 using System.Reflection;
 using System.Collections.Generic;
 using System.Linq;
@@ -35,6 +36,8 @@ namespace JLChnToZ.VRC.VVMW.Editors {
         [NonSerialized] bool isDirty;
         Vector2 playListViewScrollPosition, playListEntryViewScrollPosition;
         string ytPlaylistUrl;
+        [NonSerialized] bool isBaking, headless;
+        static bool creatingHeadless; // OnEnable runs inside CreateInstance, before `headless` can be set
         public static event Action<FrontendHandler> OnFrontendUpdated;
         static readonly GUILayoutOption[] noExpandWidthOptions = new[] { GUILayout.ExpandWidth(false) };
 
@@ -54,7 +57,7 @@ namespace JLChnToZ.VRC.VVMW.Editors {
         }
 
         void UpdateTitle() {
-            if (this == null) return;
+            if (this == null || headless || creatingHeadless) return;
             VVMWEditorBase.UpdateTitle(titleContent, "PlaylistEditor.title", isDirty);
             titleContent = titleContent; // Trigger update title
         }
@@ -105,11 +108,19 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                 if (GUILayout.Button(i18n.GetOrDefault("PlaylistEditor.import"), EditorStyles.toolbarButton, noExpandWidthOptions))
                     ImportPlayListFromJson();
                 EditorGUILayout.Space();
+                using (new EditorGUI.DisabledGroupScope(isBaking || selectedPlayList.entries == null || selectedPlayList.entries.Count == 0))
+                    if (GUILayout.Button(i18n.GetOrDefault("PlaylistEditor.bakeLoudnessSelected"), EditorStyles.toolbarButton, noExpandWidthOptions))
+                        BakeLoudness(false).Forget();
+                using (new EditorGUI.DisabledGroupScope(isBaking || playLists.Count == 0))
+                    if (GUILayout.Button(i18n.GetOrDefault("PlaylistEditor.bakeLoudnessAll"), EditorStyles.toolbarButton, noExpandWidthOptions))
+                        BakeLoudness(true).Forget();
+                EditorGUILayout.Space();
                 if (GUILayout.Button(i18n.GetOrDefault("PlaylistEditor.updateYTDLP"), EditorStyles.toolbarButton, noExpandWidthOptions))
                     YtdlpResolver.DownLoadYtDlp().Forget();
                 if (GUILayout.Button(GUIContent.none, EditorStyles.toolbarDropDown, noExpandWidthOptions)) {
                     var menu = new GenericMenu();
                     menu.AddItem(new GUIContent(i18n.GetOrDefault("PlaylistEditor.selectYTDLPInstallation")), false, SelectYtdlpInstallation);
+                    menu.AddItem(new GUIContent(i18n.GetOrDefault("PlaylistEditor.selectLoudnessYTDLP")), false, SelectLoudnessYtdlp);
                     menu.ShowAsContext();
                 }
             }
@@ -427,7 +438,7 @@ namespace JLChnToZ.VRC.VVMW.Editors {
         }
 
         void SaveIfRequired() {
-            if (isDirty && i18n.DisplayLocalizedDialog2("PlaylistEditor.unsave_confirm"))
+            if (isDirty && !headless && i18n.DisplayLocalizedDialog2("PlaylistEditor.unsave_confirm"))
                 SerializePlayList();
         }
 
@@ -512,6 +523,19 @@ namespace JLChnToZ.VRC.VVMW.Editors {
             );
             if (string.IsNullOrEmpty(path)) return;
             YtdlpResolver.YtdlpPath = path;
+        }
+
+        void SelectLoudnessYtdlp() {
+            var path = YtdlpLoudness.LoudnessYtdlpPath;
+            path = EditorUtility.OpenFilePanel(i18n.GetOrDefault("PlaylistEditor.selectLoudnessYTDLP"), Path.GetDirectoryName(path),
+#if UNITY_EDITOR_WIN
+                "exe"
+#else
+                ""
+#endif
+            );
+            if (string.IsNullOrEmpty(path)) return;
+            YtdlpLoudness.LoudnessYtdlpPath = path;
         }
 
         #region Playlist Importers
@@ -894,6 +918,92 @@ namespace JLChnToZ.VRC.VVMW.Editors {
                 selectedPlayList.entries[i] = entry;
             }
             SetDirty(true);
+        }
+
+        /// <summary>Bakes YouTube loudness into the gain of the selected playlist, or of all playlists. Shows a cancelable progress bar.</summary>
+        async UniTask BakeLoudness(bool all) {
+            if (isBaking) return;
+            isBaking = true;
+            try {
+                var text = i18n.GetOrDefault("PlaylistEditor.bakeLoudnessProgress");
+                if (!File.Exists(YtdlpLoudness.LoudnessYtdlpPath)) await YtdlpResolver.DownLoadYtDlpIfNotExists();
+                using var progress = new CancelableProgressBar(text, text);
+                var summary = await BakeLoudnessCore(all, progress.CancelToken, (done, total, id) => {
+                    progress.Info = $"{text} ({done + 1}/{total}) {id}";
+                    progress.Report((float)done / Mathf.Max(1, total));
+                });
+                Debug.Log("[VVMW] " + summary);
+            } catch (OperationCanceledException) {
+                Debug.Log("[VVMW] Bake YouTube loudness cancelled; entries fetched before the cancel keep their new gain.");
+            } finally {
+                isBaking = false;
+                Repaint();
+            }
+        }
+
+        /// <summary>The bake itself, shared by the button and the headless entry point. Failed entries are skipped and logged.</summary>
+        async UniTask<string> BakeLoudnessCore(bool all, CancellationToken token, Action<int, int, string> progress = null) {
+            var targets = new List<(int list, int entry)>();
+            var urls = new List<string>();
+            for (int l = 0; l < playLists.Count; l++) {
+                var pl = playLists[l];
+                if (pl.entries == null || (!all && !ReferenceEquals(pl.entries, selectedPlayList.entries))) continue;
+                for (int e = 0; e < pl.entries.Count; e++) {
+                    targets.Add((l, e));
+                    urls.Add(pl.entries[e].url);
+                }
+            }
+            int baked = 0, failed = 0, skipped = 0;
+            try {
+                await YtdlpLoudness.FetchAll(urls, YtdlpLoudness.LoudnessYtdlpPath, token, progress, (i, result) => {
+                    var (l, e) = targets[i];
+                    var entry = playLists[l].entries[e];
+                    if (result.videoId == null) { skipped++; return; }
+                    if (!result.ok) {
+                        failed++;
+                        Debug.LogWarning($"[VVMW] Bake loudness: skipped \"{entry.title}\" ({result.videoId}): {result.error}");
+                        return;
+                    }
+                    entry.gain = result.gain;
+                    playLists[l].entries[e] = entry;
+                    baked++;
+                    SetDirty(true);
+                });
+            } finally {
+                Repaint();
+            }
+            return $"Bake loudness: {baked} baked, {failed} failed, {skipped} not YouTube, of {urls.Count} entries.";
+        }
+
+        /// <summary>
+        /// Headless entry point (for `uab call`): loads the scene's FrontendHandler into a window instance that is never shown,
+        /// bakes all playlists through the same code the button uses, and saves back to the handler.
+        /// Returns a JSON array of the resulting gains by entry.
+        /// </summary>
+        public static async System.Threading.Tasks.Task<string> BakeLoudnessHeadless(string ytdlpPath = null) {
+            var handler = UnityEngine.Object.FindObjectOfType<FrontendHandler>(true);
+            if (handler == null) throw new InvalidOperationException("No FrontendHandler in the open scene");
+            if (!string.IsNullOrEmpty(ytdlpPath)) YtdlpLoudness.LoudnessYtdlpPath = ytdlpPath;
+            creatingHeadless = true;
+            PlayListEditorWindow window;
+            try { window = CreateInstance<PlayListEditorWindow>(); } finally { creatingHeadless = false; }
+            window.headless = true; // Never prompt
+            try {
+                window.FrontendHandler = handler;
+                var summary = await window.BakeLoudnessCore(true, CancellationToken.None);
+                window.SerializePlayList();
+                var sb = new System.Text.StringBuilder(summary).Append(" gains=[");
+                bool first = true;
+                foreach (var pl in window.playLists)
+                    foreach (var entry in pl.entries) {
+                        if (!first) sb.Append(", ");
+                        first = false;
+                        sb.Append(entry.gain > 0 ? entry.gain : 1F);
+                    }
+                return sb.Append(']').ToString();
+            } finally {
+                DestroyImmediate(window);
+            }
         }
 
         void ReversePlaylist() {
